@@ -19,7 +19,7 @@ output multipart/form-data
         "nombre": payload.parts.nombre,
         "apellido": payload.parts.apellido,
         "telefono": payload.parts.telefono,
-        "webhook_url": "https://www.eapi-firmadigital.us-e2.cloudhub.io/api/v1/signaturit"
+        "webhook_url": payload.parts.webhook_url.content
     }
 }]]></ee:set-payload>
 			</ee:message>
