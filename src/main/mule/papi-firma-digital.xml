@@ -20,8 +20,7 @@ output multipart/form-data
         "apellido": payload.parts.apellido,
         "telefono": payload.parts.telefono
     }
-}
-]]></ee:set-payload>
+}]]></ee:set-payload>
 			</ee:message>
 		</ee:transform>
 		<http:request method="POST" doc:name="Request" doc:id="8591d7b6-84d8-4a0f-a05d-c651d1dc7b50" config-ref="HTTP_Request_SI_config" path="/firma">
@@ -129,28 +128,5 @@ output application/json
 			</ee:message>
 		</ee:transform>
 		<logger level="INFO" doc:name="Logger" doc:id="a66d1c52-8176-4ac0-b49e-35e75e6b14f3" message='#["Documento descargado: " ++ attributes.uriParams.documentId]'/>
-	</flow>
-	<flow name="webhook-receptor" doc:id="9c0d23b8-63bc-4f5b-9aa4-be29204b4c67" >
-		<http:listener doc:name="Listener" doc:id="7cd82f6e-9b79-4486-9b04-ccd22444ba32" config-ref="HTTP_Listener_PAPI_config" path="/webhook" allowedMethods="POST"/>
-		<ee:transform doc:name="Transform Message" doc:id="b46aed57-86ab-44c2-ab5f-2c727a649361" >
-			<ee:message >
-				<ee:set-payload ><![CDATA[%dw 2.0
-output application/json
----
-{
-    evento: payload.event_type,
-    estado_firma: payload.signature.status,
-    fecha_evento: payload.signature.delivered_at,
-    datos_documento: {
-        signature_id: payload.signature.id,
-        document_id: payload.signature.documents[0].id,
-        email_firmante: payload.signature.documents[0].email
-    }
-}
-]]></ee:set-payload>
-			</ee:message>
-		</ee:transform>
-		<http:request method="PUT" doc:name="Request" doc:id="1bb3cedd-1ca5-4741-ba0b-3a90c2bac587" config-ref="HTTP_Request_SI_config" path="/estado"/>
-		<logger level="INFO" doc:name="Logger" doc:id="b42e05e0-13b0-4bd9-ba29-b068e13a6ddf" message='#["Estado actualizado en SF: " ++ payload.data.id]'/>
 	</flow>
 </mule>
