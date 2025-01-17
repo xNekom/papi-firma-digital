@@ -95,38 +95,21 @@ output application/json
 		<logger level="INFO" doc:name="Logger" doc:id="4df47b06-0dff-4ba0-aaea-7ecc167b0074" message='#["Payload transformado: " ++ write(payload, "application/json", {"indent": false})]'/>
 		<logger level="INFO" doc:name="Logger" doc:id="3b175348-569d-487a-82a6-ee1f60d573d3" message='#["Estado consultado para firma: " ++ (payload.data.firma.id default "")]'/>
 	</flow>
-	<flow name="obtener-documento-firmado" doc:id="150dbcd9-bdd0-48a6-a619-633a8a6548e4" >
-		<http:listener doc:name="Listener" doc:id="1e4465ba-a69c-430b-aa93-1bc6f91dea2c" config-ref="HTTP_Listener_PAPI_config" path="/documento/{signatureId}/{documentId}" allowedMethods="GET"/>
-		<http:request method="GET" doc:name="Request" doc:id="99447bbf-6791-48ff-9d47-fc01cd0e6869" config-ref="HTTP_Request_SI_config" path="/signatures/{signatureId}/status">
-			<http:headers ><![CDATA[#[output application/java
----
-{
-	"Accept" : "application/json"
-}]]]></http:headers>
-			<http:uri-params ><![CDATA[#[output application/java
----
-{
-	"signatureId" : attributes.uriParams.signatureId
-}]]]></http:uri-params>
-		</http:request>
-		<ee:transform doc:name="Transform Message" doc:id="450f7596-7bfe-41e8-afb2-dd5e46baaadf" >
-			<ee:message >
-				<ee:set-payload ><![CDATA[%dw 2.0
-output application/json
----
-{
-    status: "SUCCESS",
-    data: {
-        signature_id: attributes.uriParams.signatureId,
-        estado: payload.status,
-        documento: {
-            id: payload.document_id,
-            estado: payload.document_status
-        }
-    }
-}]]></ee:set-payload>
-			</ee:message>
-		</ee:transform>
-		<logger level="INFO" doc:name="Logger" doc:id="a66d1c52-8176-4ac0-b49e-35e75e6b14f3" message='#["Documento descargado: " ++ attributes.uriParams.documentId]'/>
-	</flow>
+	<flow name="obtener-documento-firmado">
+    <http:listener config-ref="HTTP_Listener_PAPI_config" 
+                   path="/documento/{signatureId}/{documentId}" 
+                   allowedMethods="GET"/>
+    
+    <http:request method="GET" config-ref="HTTP_Request_SI_config" 
+                 path="/documento/{signatureId}/{documentId}">
+        <http:uri-params>
+            <![CDATA[#[{
+                "documentId": attributes.uriParams.documentId,
+                "signatureId": attributes.uriParams.signatureId
+            }]]]>
+        </http:uri-params>
+    </http:request>
+    
+    <logger level="INFO" message='#["Documento procesado - SignatureID: " ++ (attributes.uriParams.signatureId default "-")]'/>
+</flow>
 </mule>
