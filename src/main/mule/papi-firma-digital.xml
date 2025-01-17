@@ -19,7 +19,6 @@ output multipart/form-data
         "nombre": payload.parts.nombre,
         "apellido": payload.parts.apellido,
         "telefono": payload.parts.telefono,
-        "webhook_url": payload.parts.webhook_url.content
     }
 }]]></ee:set-payload>
 			</ee:message>
