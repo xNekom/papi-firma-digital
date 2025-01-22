@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http"
-	xmlns="http://www.mulesoft.org/schema/mule/core"
-	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+<mule xmlns:os="http://www.mulesoft.org/schema/mule/os" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
 http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
-http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+	<os:object-store name="PDF_Store" doc:name="Object store" doc:id="0014d88a-eb84-4312-af18-8eed28705027" entryTtl="30" entryTtlUnit="DAYS" />
 	<flow name="procesarFirmaFlow">
     <http:listener path="/firma" config-ref="HTTP_Listener_PAPI_config" allowedMethods="POST"/>
 		<ee:transform doc:name="Transform Message" doc:id="535a75e4-e0cc-4c35-899e-91350ad81612" >
@@ -99,17 +101,69 @@ output application/json
     <http:listener config-ref="HTTP_Listener_PAPI_config" 
                    path="/documento/{signatureId}/{documentId}" 
                    allowedMethods="GET"/>
-    
-    <http:request method="GET" config-ref="HTTP_Request_SI_config" 
-                 path="/documento/{signatureId}/{documentId}">
-        <http:uri-params>
-            <![CDATA[#[{
-                "documentId": attributes.uriParams.documentId,
-                "signatureId": attributes.uriParams.signatureId
-            }]]]>
-        </http:uri-params>
+
+    <set-variable value="#[attributes.uriParams.documentId]" doc:name="documentId" doc:id="4123bf74-f62d-4f53-85a8-db125090813e" variableName="documentId"/>
+		<set-variable value="#[attributes.uriParams.signatureId]" doc:name="signatureId" doc:id="0b1c7e7a-7fb7-494a-aafb-e4f6a43d571c" variableName="signatureId"/>
+		<http:request method="GET" config-ref="HTTP_Request_SI_config" 
+                 path="/documento/{signatureId}/{documentId}" sendCorrelationId="ALWAYS">
+        <http:uri-params><![CDATA[#[{
+	"documentId": attributes.uriParams.documentId,
+	"signatureId": attributes.uriParams.signatureId
+}]]]></http:uri-params>
     </http:request>
-    
-    <logger level="INFO" message='#["Documento procesado - SignatureID: " ++ (attributes.uriParams.signatureId default "-")]'/>
+
+    <choice doc:name="Choice">
+        <when expression="#[vars.signatureId != null and vars.documentId != null]">
+            <os:store doc:name="Store" key="#[payload]" objectStore="PDF_Store">
+            </os:store>
+            <logger level="INFO" message='#["Documento recibido de SAPI y almacenado en Object Store - SignatureID: " ++ vars.signatureId as String ++ ", DocumentID: " ++ vars.documentId as String]' />
+        </when>
+        <otherwise>
+            <logger level="ERROR" message='#["Error: signatureId o documentId son nulos. No se puede almacenar el documento."]' />
+            <ee:transform doc:name="Transform Message">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+                    output application/json
+                    ---
+                    {
+                        "error": "Parámetros de URL faltantes",
+                        "message": "Los parámetros signatureId y documentId son obligatorios."
+                    }]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <set-variable variableName="httpStatus" value="400" doc:name="Set Status 400"/>
+        </otherwise>
+    </choice>
+
+    <ee:transform doc:name="Transform Message" >
+        <ee:message>
+            <ee:set-payload><![CDATA[%dw 2.0
+            output application/json
+            ---
+            {
+                "message": "Documento PDF almacenado correctamente",
+                "signatureId": vars.signatureId,
+                "documentId": vars.documentId
+            }]]></ee:set-payload>
+        </ee:message>
+    </ee:transform>
+
+    <error-handler>
+        <on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" type="ANY">
+            <logger level="ERROR" doc:name="Logger" doc:id="719ebf3c-2e58-4c1a-a306-27c5b392faa9" message='#["Error en el flujo obtener-documento-firmado: " ++ error.description]' />
+            <ee:transform doc:name="Transform Message">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+                    output application/json
+                    ---
+                    {
+                        "error": "Error al procesar la solicitud",
+                        "message": error.description
+                    }]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <set-variable variableName="httpStatus" value="500" doc:name="Set Status 500"/>
+        </on-error-propagate>
+    </error-handler>
 </flow>
 </mule>
