@@ -1,0 +1,4 @@
+%dw 2.0
+
+type auto_71b92ed6_5d4b_4be6_9d9c_44426bc85309_Input_Variables_signatureId = String | Null
+

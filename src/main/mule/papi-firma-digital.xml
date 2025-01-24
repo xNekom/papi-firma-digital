@@ -6,7 +6,7 @@ http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/htt
 http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
 http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
 
-    <os:object-store name="PDF_Store" doc:name="Almacén de PDFs Firmados" doc:id="ae2f2b72-b9a1-42a5-af65-99dc92c2ce1c" entryTtl="30" entryTtlUnit="DAYS" />
+    <os:object-store name="PDF_Store" doc:name="Almacén de PDFs Firmados" doc:id="ae2f2b72-b9a1-42a5-af65-99dc92c2ce1c" entryTtl="30" entryTtlUnit="DAYS" maxEntries="-1"/>
 
     <flow name="procesarFirmaFlow">
         <http:listener path="/firma" config-ref="HTTP_Listener_PAPI_config" doc:name="Recibir Solicitud de Firma" allowedMethods="POST"/>
@@ -120,7 +120,7 @@ output application/json
             <when expression="#[vars.signatureId != null and vars.documentId != null]">
                 <os:store doc:name="Almacenar PDF en Object Store" key="#[vars.documentId]" objectStore="PDF_Store"/>
                 <logger level="INFO" doc:name="Log Documento Almacenado" message='#["Documento recibido de SAPI y almacenado en Object Store - SignatureID: " ++ vars.signatureId as String ++ ", DocumentID: " ++ vars.documentId as String]'/>
-				<flow-ref doc:name="Flow Reference a Recuperar y mandar" doc:id="e3e3bf7a-59ff-4180-b108-4ac32bb4de67" name="Recuperar_y_mandar_documento_Salesforce"/>
+				<flow-ref doc:name="Procesar y Enviar Documento" doc:id="af93a89e-3022-4c9c-a282-2f7b52de13ca" name="recuperar-y-enviar-documento"/>
             </when>
             <otherwise>
                 <logger level="ERROR" doc:name="Log Error de Validación" message='#["Error: signatureId o documentId son nulos. No se puede almacenar el documento."]'/>
@@ -151,7 +151,8 @@ output application/json
 }]]></ee:set-payload>
             </ee:message>
         </ee:transform>
-		<error-handler>
+
+        <error-handler>
             <on-error-propagate enableNotifications="true" logException="true" doc:name="Manejar Error General" type="ANY">
                 <logger level="ERROR" doc:name="Log Error de Proceso" doc:id="5879c965-05c7-4998-8185-335f9b22ce05" message='#["Error en el flujo obtener-documento-firmado: " ++ error.description]'/>
                 <ee:transform doc:name="Preparar Mensaje de Error">
@@ -169,23 +170,52 @@ output application/json
             </on-error-propagate>
         </error-handler>
     </flow>
-	<flow name="Recuperar_y_mandar_documento_Salesforce" doc:id="50ef87c1-e8b9-45c7-9a6b-abf33c4daf0f" >
-		<os:retrieve doc:name="Retrieve" doc:id="1c82f0bf-e8a2-42fb-b4d3-52ee3a5073b2" key="#[vars.documentId]" objectStore="PDF_Store" >
-		</os:retrieve>
-		<ee:transform doc:name="Transform Message" doc:id="929cc090-7464-4bb5-8b2d-fa13395a782c" >
-			<ee:message >
-				<ee:set-payload ><![CDATA[%dw 2.0
+    <flow name="recuperar-y-enviar-documento" doc:id="71b92ed6-5d4b-4be6-9d9c-44426bc85309">
+    
+    <os:retrieve key="#[vars.documentId]" 
+                 doc:name="Recuperar PDF de Object Store" 
+                 objectStore="PDF_Store"/>
+    
+    <ee:transform doc:name="Convertir PDF a Base64">
+        <ee:message>
+            <ee:set-payload><![CDATA[%dw 2.0
 output application/json
 ---
 {
-	documentobase64: write(payload,"application/octet-stream") as String {base:'64'},
-	documentId: vars.documentId
-	
-}
-
-]]></ee:set-payload>
-			</ee:message>
-		</ee:transform>
-		<http:request method="GET" doc:name="Request" doc:id="cec1b3a1-fc65-4b66-acb9-c77463dd5e41" config-ref="HTTP_Request_SF_Config" path="/documento"/>
-	</flow>
+    documentoBase64: write(payload, "application/octet-stream") as String {base: "64"},
+    documentId: vars.documentId
+}]]></ee:set-payload>
+        </ee:message>
+    </ee:transform>
+    
+    <http:request method="POST" 
+                 config-ref="HTTP_Request_SF_Config" 
+                 doc:name="Enviar documento a Salesforce" 
+                 path="/documento">
+        <http:headers><![CDATA[#[output application/java
+---
+{
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+}]]]></http:headers>
+    </http:request>
+    
+    <error-handler>
+        <on-error-propagate type="OS:KEY_NOT_FOUND">
+            <ee:transform doc:name="Preparar Mensaje Error Documento No Encontrado">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "error": "Documento no encontrado",
+    "message": "El documento solicitado no existe en el Object Store"
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <set-variable variableName="httpStatus" value="404" 
+                         doc:name="Establecer Estado HTTP 404"/>
+        </on-error-propagate>
+    </error-handler>
+</flow>
 </mule>
