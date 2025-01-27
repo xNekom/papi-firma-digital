@@ -176,7 +176,8 @@ output application/json
                  doc:name="Recuperar PDF de Object Store" 
                  objectStore="PDF_Store"/>
     
-    <ee:transform doc:name="Convertir PDF a Base64">
+    <logger level="INFO" doc:name="Logger" doc:id="d802a195-5045-416f-b76c-0dfd33cddf69" message='#[payload]'/>
+		<ee:transform doc:name="Convertir PDF a Base64">
         <ee:message>
             <ee:set-payload><![CDATA[%dw 2.0
 output application/json
