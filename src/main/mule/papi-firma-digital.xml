@@ -6,8 +6,6 @@ http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/htt
 http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
 http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
 
-    <os:object-store name="PDF_Store" doc:name="Almacén de PDFs Firmados" doc:id="ae2f2b72-b9a1-42a5-af65-99dc92c2ce1c" entryTtl="30" entryTtlUnit="DAYS" maxEntries="-1"/>
-
     <flow name="procesarFirmaFlow">
         <http:listener path="/firma" config-ref="HTTP_Listener_PAPI_config" doc:name="Recibir Solicitud de Firma" allowedMethods="POST"/>
         <ee:transform doc:name="Preparar Datos Multipart para Firma" doc:id="5bb8e12e-c54c-4bfc-8f40-6b2f0e5ed033">
